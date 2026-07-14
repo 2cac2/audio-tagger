@@ -15,6 +15,7 @@ Requires: requests (imported lazily).
 from __future__ import annotations
 
 from ..models import ArtistCredit, Candidate, InputTrack, ReleaseType
+from ..translit import extract_film_from_title
 from .base import query_string, score_match
 
 _SEARCH = "https://api.deezer.com/search"
@@ -75,9 +76,13 @@ class DeezerSource:
         return out
 
     def _to_candidate(self, requests, track: InputTrack, item: dict) -> Candidate | None:
-        title = (item.get("title") or "").strip()
-        if not title:
+        raw_title = (item.get("title") or "").strip()
+        if not raw_title:
             return None
+        # Deezer titles carry the film as a `(From "X")` suffix — pull it out so
+        # the film becomes the album and the title matches cleanly.
+        title, film = extract_film_from_title(raw_title)
+        title = title or raw_title
         artist_name = ((item.get("artist") or {}).get("name") or "").strip()
         album = item.get("album") or {}
         album_title = (album.get("title") or "").strip()
@@ -93,6 +98,11 @@ class DeezerSource:
                                          ReleaseType.ALBUM)
                 release_date = detail.get("release_date") or None
 
+        # A recovered film name means this is a film song: prefer the soundtrack
+        # release type (unless Deezer explicitly calls the release a compilation).
+        if film and rtype != ReleaseType.COMPILATION:
+            rtype = ReleaseType.SOUNDTRACK
+
         # Track detail: ISRC (the cross-source recording bridge).
         isrc = None
         track_id = item.get("id")
@@ -102,17 +112,25 @@ class DeezerSource:
                 isrc = tdetail.get("isrc") or None
                 release_date = release_date or (tdetail.get("release_date") or None)
 
-        credits = [ArtistCredit(artist_name, "singer")] if artist_name else []
+        # Deezer exposes only a single top-level "artist" with no role depth, and
+        # for filmi tracks that name is usually the MUSIC DIRECTOR (e.g. "Pritam"),
+        # NOT the playback singer. Emit it as a neutral "performer" so we never
+        # assert a false singer — the ``singers`` property still surfaces it as a
+        # last resort, but role-authoritative sources (MusicBrainz work-rels,
+        # JioSaavn, YouTube label credits) win when present.
+        credits = [ArtistCredit(artist_name, "performer")] if artist_name else []
         return Candidate(
             source=self.name,
             title=title,
-            release_title=album_title,
+            release_title=film or album_title,
             release_type=rtype,
             credits=credits,
+            film=film,
             year=_year(release_date),
             release_date=release_date,
             match_score=score_match(track, title, [artist_name]),
-            raw={"isrc": isrc, "album_id": album_id, "track_id": track_id, "hit": item},
+            raw={"isrc": isrc, "album_id": album_id, "track_id": track_id,
+                 "role_unverified": True, "hit": item},
         )
 
 

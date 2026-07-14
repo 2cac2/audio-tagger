@@ -199,6 +199,47 @@ SLA**:
 
 ---
 
+## 5b. YouTube source (label / Topic descriptions)
+
+Official Bollywood/Punjabi label channels (T-Series, Sony Music India, Zee Music
+Company, Speed Records, …) and auto-generated "… - Topic" art-tracks publish the
+full credit chain — Singer / Music / Lyrics / Movie / Music Label — in the video
+description, and often the lyrics. The YouTube source reads that description and
+hands it to the LLM to extract structured credits; it is one of the best sources
+for **who** (singer vs composer vs lyricist) and **which film**.
+
+Enable it with:
+
+```bash
+pip install yt-dlp          # or:  pip install -e ".[youtube]"
+```
+
+It is on by default in `config.yaml` (`sources.youtube.enabled: true`) but only
+does anything when `yt-dlp` is installed **and** the LLM agent is reachable
+(the description parse needs the model). Without either it self-disables.
+
+**Trust is deliberately narrow.** YouTube search is full of covers, fan
+reuploads and "slowed+reverb" edits. The source keeps a result only if the
+channel is a known label, a "… - Topic" art-track, or a verified channel, **and**
+the video duration matches the file (within `duration_tolerance_sec`). Everything
+else is dropped. Extend the built-in channel allowlist via
+`sources.youtube.trusted_channels` in `config.yaml`.
+
+**Risk / caveats:**
+
+- `yt-dlp` reads **public metadata only** (title, description, channel, duration)
+  — it does **not** download audio here. That is lower-risk than ripping, but
+  scraping YouTube is still a grey area under its Terms; use at your own risk.
+- YouTube may throttle or block datacenter IPs, or require a logged-in session.
+  If searches come back empty from a server, pass cookies via a `yt-dlp`
+  `cookiefile` / `--cookies-from-browser` (wire through the adapter's options).
+- The trust filter is mandatory — without it, YouTube would inject cover/knock-off
+  metadata. Do not widen `trusted_channels` to unofficial uploaders.
+- If YouTube is unreachable or `yt-dlp` is absent, the harness keeps working on
+  the other sources; you just lose the label-credit corroboration.
+
+---
+
 ## 6. Putting it together
 
 ```bash

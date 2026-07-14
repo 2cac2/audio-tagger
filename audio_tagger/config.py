@@ -89,6 +89,7 @@ _DEFAULT_SOURCES: dict[str, SourceConfig] = {
     "acoustid": SourceConfig(enabled=True),
     "jiosaavn": SourceConfig(enabled=True, base_url="http://localhost:3500"),
     "deezer": SourceConfig(enabled=True),
+    "youtube": SourceConfig(enabled=True),   # label/Topic descriptions -> LLM parse
     "itunes": SourceConfig(enabled=True),
     "spotify": SourceConfig(enabled=False),   # 2024-26 API lockdown — off by default
     "discogs": SourceConfig(enabled=False),   # needs a token — off by default

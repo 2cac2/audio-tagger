@@ -77,9 +77,10 @@ files.
 | MusicBrainz | no | structured singer/composer/lyricist roles (via work-rels `includes`) + soundtrack type |
 | JioSaavn | self-hosted API | ground truth for Hindi film music: film-as-album, year, label, music director, per-song language |
 | iTunes Search | no | strong Bollywood/Punjabi/indipop coverage, names the film album |
-| Deezer | no | keyless fallback + **ISRC** bridge for cross-source recording identity |
+| Deezer | no | keyless fallback + **ISRC** bridge; neutral `performer` role (its artist is often the composer) |
+| YouTube | `yt-dlp` + LLM | label / "…- Topic" / verified channels only (+ duration match); LLM parses the description into singer/composer/lyricist/film, and picks up lyrics some labels paste there |
 | Spotify / Discogs | key | **demoted / off by default** (Spotify's 2024–2026 dev lockdown makes it a liability) |
-| Lyrics: LRCLIB | no | synced `.lrc` first; plain lyrics written into the tag |
+| Lyrics: LRCLIB | no | synced `.lrc` first (exact `/api/get`, then fuzzy `/api/search` for Hindi songs); plain lyrics written into the tag |
 
 The harness runs with the keyless sources alone; everything else is additive and
 each source self-disables without its key.
@@ -171,7 +172,7 @@ audio_tagger/
   scan.py         read files + AcoustID fingerprint
   translit.py     roman-Hindi normalization + similarity (humein/hume/humey → hame)
   credits.py      composer-duo folding + cross-source role-tagged credit merge
-  sources/        acoustid · musicbrainz · jiosaavn · itunes · deezer · spotify · discogs
+  sources/        acoustid · musicbrainz · jiosaavn · youtube · itunes · deezer · spotify · discogs
   heuristics.py   release-preference scoring (the "greatest hits" fix)
   resolve.py      cross-source agreement + confidence gating + agent/verify hooks
   verify/         audio_clip (ffmpeg 25s clip) · omni (LLM language/vocalist check)

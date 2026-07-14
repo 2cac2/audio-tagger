@@ -43,12 +43,14 @@ def _enabled(cfg, name: str) -> bool:
     return bool(getattr(sc, "enabled", True))
 
 
-def _build_sources(cfg, no_fingerprint: bool = False) -> list:
+def _build_sources(cfg, no_fingerprint: bool = False, llm=None) -> list:
     """Construct the enabled source adapters in resolution order.
 
-    Order: AcoustID (fingerprint) first, then MusicBrainz, JioSaavn, iTunes,
-    Deezer; Discogs and Spotify only when explicitly enabled (and credentialed).
-    Any adapter that fails to construct (missing dep) is skipped with a warning.
+    Order: AcoustID (fingerprint) first, then MusicBrainz, JioSaavn, YouTube,
+    iTunes, Deezer; Discogs and Spotify only when explicitly enabled (and
+    credentialed). Any adapter that fails to construct (missing dep) is skipped
+    with a warning. ``llm`` (when the agent is on) is injected into the YouTube
+    source so it can parse label descriptions into structured credits.
     """
     from .sources import (
         AcoustIDSource,
@@ -58,6 +60,7 @@ def _build_sources(cfg, no_fingerprint: bool = False) -> list:
         JioSaavnSource,
         MusicBrainzSource,
         SpotifySource,
+        YouTubeSource,
     )
 
     out: list = []
@@ -83,6 +86,15 @@ def _build_sources(cfg, no_fingerprint: bool = False) -> list:
 
     js = cfg.sources.get("jiosaavn")
     add("jiosaavn", lambda: JioSaavnSource(base_url=getattr(js, "base_url", None)))
+
+    yt = cfg.sources.get("youtube")
+    yt_extra = getattr(yt, "extra", {}) or {}
+    add("youtube", lambda: YouTubeSource(
+        llm=llm,
+        max_results=int(yt_extra.get("max_results", 6)),
+        trusted_channels=yt_extra.get("trusted_channels"),
+        duration_tolerance_sec=int(yt_extra.get("duration_tolerance_sec", 5)),
+    ))
 
     add("itunes", lambda: ITunesSource())
     add("deezer", lambda: DeezerSource())
@@ -185,7 +197,7 @@ def cmd_tag(args):
             print(f"[note] audio verification: {args.verify_audio}")
 
     resolver = Resolver(
-        sources=_build_sources(cfg, args.no_fingerprint),
+        sources=_build_sources(cfg, args.no_fingerprint, llm=llm if judge is not None else None),
         fallback=judge,
         auto_threshold=auto_threshold,
         agreement_floor=cfg.thresholds.agreement_floor,

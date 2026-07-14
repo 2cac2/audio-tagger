@@ -15,6 +15,7 @@ from .itunes import ITunesSource
 from .jiosaavn import JioSaavnSource
 from .musicbrainz import MusicBrainzSource
 from .spotify import SpotifySource
+from .youtube import YouTubeSource
 
 __all__ = [
     "Source",
@@ -27,4 +28,5 @@ __all__ = [
     "JioSaavnSource",
     "MusicBrainzSource",
     "SpotifySource",
+    "YouTubeSource",
 ]

@@ -40,6 +40,13 @@ sources:
     # api_key: "..."                        # free key; or set ACOUSTID_KEY. self-disables without one
   deezer:
     enabled: true                           # keyless; ISRC bridge across sources
+  youtube:
+    enabled: true                           # needs `pip install yt-dlp`; uses the LLM to parse
+    max_results: 6                          # how many search results to consider
+    duration_tolerance_sec: 5               # video vs file duration must match within this
+    # Only trusts label channels, "… - Topic" art-tracks, and verified channels.
+    # Add channels to extend the built-in allowlist (T-Series, Sony Music India, …):
+    # trusted_channels: ["Tips Punjabi", "Lokdhun Punjabi"]
   itunes:
     enabled: true                           # keyless search
   spotify:
