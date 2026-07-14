@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 
 from ..models import ArtistCredit, Candidate, InputTrack, ReleaseType
-from .base import query_string
+from .base import query_string, score_match
 
 _FORMAT_HINT_COMPILATION = {"compilation", "comp"}
 
@@ -68,14 +68,19 @@ class DiscogsSource:
             rtype = (ReleaseType.COMPILATION if is_comp
                      else ReleaseType.SOUNDTRACK if is_soundtrack
                      else ReleaseType.ALBUM)
+            release_title = r.get("title", "")
+            # Discogs release titles read "Artist - Release"; use the artist
+            # portion (if any) to score the match rather than a flat prior.
+            artist_part = release_title.split(" - ", 1)[0] if " - " in release_title else ""
+            title = track.existing_title or release_title
             out.append(Candidate(
                 source=self.name,
-                title=track.existing_title or r.get("title", ""),
-                release_title=r.get("title", ""),
+                title=title,
+                release_title=release_title,
                 release_type=rtype,
-                film=r.get("title") if is_soundtrack else None,
+                film=release_title if is_soundtrack else None,
                 year=int(r["year"]) if str(r.get("year", "")).isdigit() else None,
-                match_score=0.55,
+                match_score=score_match(track, title, [artist_part] if artist_part else []),
                 raw=r,
             ))
         return out

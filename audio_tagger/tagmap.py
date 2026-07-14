@@ -17,6 +17,7 @@ with a null separator so players show real multi-artist credits rather than
 
 from __future__ import annotations
 
+from .credits import canonical_acts
 from .models import Candidate, ReleaseType
 
 
@@ -42,9 +43,15 @@ def _album_field(c: Candidate) -> str:
 
 
 def _album_artist(c: Candidate) -> list[str]:
-    """ALBUMARTIST cascade: composer -> producer -> mixer -> singers."""
+    """ALBUMARTIST cascade: composer -> producer -> mixer -> singers.
+
+    Composer names are folded through ``credits.canonical_acts`` so a known
+    duo/trio (e.g. Vishal Dadlani + Shekhar Ravjiani) shows as the single
+    credited act ("Vishal-Shekhar") rather than two separate names. Singers,
+    producers and mixers are left as-is — only composer acts fold.
+    """
     if c.composers:
-        return c.composers
+        return canonical_acts(c.composers)
     if c.producers:
         return c.producers
     if c.mixers:
@@ -65,7 +72,9 @@ def build_tags(c: Candidate) -> dict:
     if c.singers:
         tags["artist"] = c.singers
     if c.composers:
-        tags["composer"] = c.composers
+        # Fold composer duos/trios to the credited act so COMPOSER and
+        # ALBUMARTIST agree (both show "Vishal-Shekhar", not the split names).
+        tags["composer"] = canonical_acts(c.composers)
     if c.lyricists:
         tags["lyricist"] = c.lyricists
     if c.year:

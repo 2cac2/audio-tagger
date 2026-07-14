@@ -1,0 +1,32 @@
+{
+  "id": "rec-mb-1",
+  "title": "Kesariya",
+  "artist-credit": [
+    {"artist": {"id": "a1", "name": "Arijit Singh"}}
+  ],
+  "work-relation-list": [
+    {
+      "work": {
+        "id": "work-1",
+        "title": "Kesariya",
+        "artist-relation-list": [
+          {"type": "composer", "artist": {"id": "c1", "name": "Pritam"}},
+          {"type": "lyricist", "artist": {"id": "l1", "name": "Amitabh Bhattacharya"}}
+        ]
+      }
+    }
+  ],
+  "release-list": [
+    {
+      "id": "rel-1",
+      "title": "Brahmastra",
+      "date": "2022-09-09",
+      "release-group": {
+        "id": "rg-1",
+        "primary-type": "Album",
+        "secondary-type-list": ["Soundtrack"],
+        "title": "Brahmastra"
+      }
+    }
+  ]
+}

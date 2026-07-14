@@ -100,3 +100,7 @@ class Resolution:
     used_websearch_fallback: bool = False
     needs_review: bool = True
     reasons: list[str] = field(default_factory=list)  # human-readable why
+    # --- gating provenance (added by the resolver/verify/agent layers) -------
+    n_agreeing_sources: int = 0     # distinct structured sources backing the pick
+    audio_verified: bool = False    # a 25s clip corroborated the chosen candidate
+    agent_used: bool = False        # the LLM agent judge contributed to the pick

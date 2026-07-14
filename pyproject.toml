@@ -7,13 +7,16 @@ requires-python = ">=3.10"
 dependencies = [
     "musicbrainzngs>=0.7.1",   # MusicBrainz source (keyless)
     "mutagen>=1.47",           # reading/writing tags
+    "pyyaml>=6.0",             # config loading
 ]
 
 [project.optional-dependencies]
 # Everything below is optional; the harness runs with just the core deps.
-fingerprint = ["pyacoustid>=1.3"]     # AcoustID fingerprinting (needs fpcalc binary)
-spotify = ["requests>=2.31"]          # Spotify + Discogs sources
-fallback = ["anthropic>=0.40", "ddgs>=6.0"]  # example web-search fallback wiring
+fingerprint = ["pyacoustid>=1.3"]        # AcoustID fingerprinting (needs fpcalc binary)
+sources = ["requests>=2.31"]             # HTTP-backed sources (Spotify, Discogs, ...)
+agent = ["openai>=1.40", "mcp>=1.0"]     # local LLM agent + MCP toolbox fallback
+youtube = ["yt-dlp>=2024.0"]             # YouTube label/Topic description source
+tui = ["textual>=0.60"]                  # review TUI
 dev = ["pytest>=8.0"]
 
 [project.scripts]

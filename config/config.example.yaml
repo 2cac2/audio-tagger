@@ -1,0 +1,86 @@
+# audio-tagger harness configuration (example).
+#
+# Copy to ./config.yaml and edit. Every section is optional — anything you omit
+# falls back to the built-in defaults in audio_tagger/config.py. Secrets are
+# better supplied via environment variables (see the notes at the bottom); env
+# values override whatever is written here.
+#
+#   cp config/config.example.yaml config.yaml
+
+# --- Local omni LLM (OpenAI-compatible endpoint: vLLM or llama.cpp) ---------
+llm:
+  base_url: "http://localhost:8000/v1"
+  # Omni model: understands text + audio, drives the judge and the 25s verify.
+  model: "Qwen/Qwen3.5-Omni-7B"
+  # api_key: "EMPTY"          # local servers usually ignore this; or set LLM_API_KEY
+  max_agent_turns: 6          # upper bound on the agent tool-use loop
+  timeout_sec: 60
+  supports_audio_input: true  # set false for a text-only model (disables audio verify)
+
+# --- MCP tool servers the agent judge may call on gate failure --------------
+# Only used as a fallback when structured sources disagree or lack roles.
+mcp:
+  servers:
+    websearch:
+      transport: sse
+      url: "http://localhost:8081/sse"      # SearXNG / DuckDuckGo search MCP shim
+    firecrawl:
+      transport: sse
+      url: "http://localhost:8082/sse"      # Firecrawl fetch/scrape MCP
+
+# --- Structured sources (queried first; the LLM is only a tie-breaker) ------
+sources:
+  jiosaavn:
+    enabled: true
+    base_url: "http://localhost:3500"       # self-hosted sumitkolhe/jiosaavn-api
+  musicbrainz:
+    enabled: true                           # keyless; AcoustID MBIDs seed it
+  acoustid:
+    enabled: true
+    # api_key: "..."                        # free key; or set ACOUSTID_KEY. self-disables without one
+  deezer:
+    enabled: true                           # keyless; ISRC bridge across sources
+  youtube:
+    enabled: true                           # needs `pip install yt-dlp`; uses the LLM to parse
+    max_results: 6                          # how many search results to consider
+    duration_tolerance_sec: 5               # duration gate for the weaker "verified" tier
+    # Only trusts label channels, "… - Topic" art-tracks, and verified channels.
+    # Add channels to extend the built-in allowlist (T-Series, Sony Music India, …):
+    # trusted_channels: ["Tips Punjabi", "Lokdhun Punjabi"]
+    # Bot-gate mitigations for datacenter/server hosts (see docs/SETUP.md §5b):
+    # cookiefile: "/path/to/cookies.txt"    # a logged-in YouTube session (Netscape format)
+    # pot_base_url: "http://127.0.0.1:4416" # custom PO-token provider host (default auto-discovered)
+  itunes:
+    enabled: true                           # keyless search
+  spotify:
+    enabled: false                          # 2024-26 API lockdown — demoted, off by default
+    # api_key: "<client_id>"                # or set SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET
+  discogs:
+    enabled: false                          # needs a token — off by default
+    # api_key: "<token>"                    # or set DISCOGS_TOKEN
+
+# --- Confidence gate --------------------------------------------------------
+thresholds:
+  auto: 0.80                  # confidence at/above which a pick may auto-write
+  agreement_floor: 0.5        # below this cross-source agreement, invoke the agent
+  min_independent_sources: 2  # need >=2 agreeing sources (or audio verification) to pass
+  agent_confidence_cap: 0.60  # the agent can never single-handedly clear the gate
+
+# --- Audio verification (25s clip -> omni model, evidence only) -------------
+verify:
+  offset: middle              # where in the track to sample: middle | start | <seconds>
+  clip_seconds: 25
+  sample_rate: 16000
+
+# --- Lyrics -----------------------------------------------------------------
+lyrics:
+  enabled: true
+  write_plain_to_tag: true    # when only unsynced lyrics exist, embed them in the tag
+
+# --- Environment variable overrides (recommended for secrets) ---------------
+#   LLM_API_KEY / OPENAI_API_KEY   -> llm.api_key
+#   ACOUSTID_KEY                   -> sources.acoustid.api_key
+#   DISCOGS_TOKEN                  -> sources.discogs.api_key
+#   GENIUS_TOKEN                   -> sources.genius.api_key
+#   SPOTIFY_CLIENT_ID              -> sources.spotify.api_key
+#   SPOTIFY_CLIENT_SECRET          -> sources.spotify.extra.client_secret

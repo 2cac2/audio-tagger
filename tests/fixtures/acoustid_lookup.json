@@ -1,0 +1,19 @@
+{
+  "status": "ok",
+  "results": [
+    {
+      "id": "acoustid-1",
+      "score": 0.95,
+      "recordings": [
+        {
+          "id": "rec-mb-1",
+          "title": "Kesariya",
+          "artists": [{"id": "a1", "name": "Arijit Singh"}],
+          "releasegroups": [
+            {"title": "Brahmastra", "type": "Album", "secondarytypes": ["Soundtrack"]}
+          ]
+        }
+      ]
+    }
+  ]
+}
