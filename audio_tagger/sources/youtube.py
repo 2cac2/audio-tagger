@@ -36,6 +36,15 @@ _DEFAULT_TRUSTED = {
     "times music", "venus", "shemaroo", "muzik247",
 }
 
+# Distinctive label "roots": a channel whose normalized name is exactly a root or
+# starts with "<root> " is a sub-brand of that label (e.g. "Saregama Gurbani",
+# "T-Series Apna Punjab", "Sony Music South") and is treated as official. Kept to
+# multi-word / distinctive roots so a fan channel can't match on a common word.
+_LABEL_ROOTS = {
+    "t-series", "sony music", "saregama", "zee music", "speed records",
+    "white hill music", "aditya music", "times music", "yrf", "eros now",
+}
+
 
 def _norm_channel(name: str | None) -> str:
     return (name or "").strip().lower()
@@ -67,7 +76,11 @@ class YouTubeSource:
         return _norm_channel(channel).endswith("- topic")
 
     def _is_official(self, channel: str | None) -> bool:
-        return _norm_channel(channel) in self.trusted
+        n = _norm_channel(channel)
+        if n in self.trusted:
+            return True
+        # Sub-brand of a known label: "<root>" or "<root> <suffix>".
+        return any(n == root or n.startswith(root + " ") for root in _LABEL_ROOTS)
 
     def _trusted(self, entry: dict) -> tuple[bool, str]:
         """Return (is_trusted, tier) where tier is 'official' | 'topic' | 'verified'."""

@@ -263,6 +263,19 @@ def test_youtube_trust_filter_and_llm_parse(monkeypatch):
     assert label.raw.get("lyrics") == "kesariya tera ishq hai piya"
 
 
+def test_youtube_official_sub_brands():
+    """Label sub-brands (Saregama Gurbani, T-Series Apna Punjab, Sony Music South)
+    are trusted as official; unrelated channels are not."""
+    from audio_tagger.sources.youtube import YouTubeSource
+    s = YouTubeSource(llm=None)
+    for ch in ["Saregama Gurbani", "T-Series Apna Punjab", "Sony Music South",
+               "Saregama", "Zee Music Punjabi"]:
+        assert s._is_official(ch), f"{ch} should be official (label sub-brand)"
+    for ch in ["Ramgarhia Sikh Association Woolwich", "Random Fan Covers",
+               "Tips and Tricks", "Deh Shiva Devotional Uploads"]:
+        assert not s._is_official(ch), f"{ch} must not be treated as an official label"
+
+
 def test_youtube_no_llm_falls_back_to_title_pattern(monkeypatch):
     _install_ytdlp(monkeypatch, [_YT_ENTRIES[0]])
     from audio_tagger.sources.youtube import YouTubeSource
