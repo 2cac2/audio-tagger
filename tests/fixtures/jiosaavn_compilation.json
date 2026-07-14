@@ -1,0 +1,13 @@
+{
+  "data": [
+    {
+      "id": "song2",
+      "name": "Kesariya",
+      "album": {"name": "Superhits of Arijit Singh"},
+      "year": "2023",
+      "language": "hindi",
+      "artists": {"primary": [{"name": "Arijit Singh"}]},
+      "music": [{"name": "Pritam"}]
+    }
+  ]
+}

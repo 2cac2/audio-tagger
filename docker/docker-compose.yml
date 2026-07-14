@@ -1,0 +1,151 @@
+# audio-tagger — supporting services stack.
+#
+# Brings up the structured source (JioSaavn) plus the two optional agent-fallback
+# tool backends (SearXNG web search + self-hosted Firecrawl fetch/scrape). None of
+# this is required to run the harness against the keyless sources (MusicBrainz +
+# iTunes + Deezer) — it only powers the LLM agent's MCP tools and the Hindi-film
+# ground-truth source. See ../docs/SETUP.md for the full bring-up and how these
+# ports line up with ../config/config.example.yaml.
+#
+#   docker compose -f docker/docker-compose.yml up -d
+#
+# Port map (also documented in config/config.example.yaml):
+#   searxng            :8080   web search JSON API (behind the search-MCP shim)
+#   searxng-mcp        :8081   SearXNG -> MCP shim  -> config.mcp.servers.websearch
+#   firecrawl-api      :3002   Firecrawl scrape/crawl HTTP API
+#   firecrawl-mcp      :8082   Firecrawl -> MCP shim -> config.mcp.servers.firecrawl
+#   jiosaavn-api       :3500   unofficial JioSaavn API -> config.sources.jiosaavn
+
+name: audio-tagger
+
+services:
+  # -------------------------------------------------------------------------
+  # SearXNG — self-hosted metasearch. The agent never talks to it directly;
+  # it goes through the search-MCP shim below. JSON output MUST be enabled or
+  # the shim gets HTML back: on first boot SearXNG writes ./searxng/settings.yml,
+  # then add `json` under `search.formats` (see docs/SETUP.md) and restart.
+  # -------------------------------------------------------------------------
+  searxng:
+    image: searxng/searxng:latest
+    container_name: at-searxng
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+      # Change this before exposing the instance anywhere non-local.
+      - SEARXNG_SECRET=please-change-me
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # search-MCP shim — SearXNG speaks JSON-over-HTTP, not MCP. This bridge turns
+  # the SearXNG /search?format=json endpoint into an MCP `search` tool served
+  # over SSE at :8081, which is exactly what config.mcp.servers.websearch points
+  # at (http://localhost:8081/sse). Swap the image for whatever SearXNG->MCP
+  # bridge you prefer; ihor-sokoliuk/mcp-searxng is a common one.
+  # -------------------------------------------------------------------------
+  searxng-mcp:
+    image: ghcr.io/ihor-sokoliuk/mcp-searxng:latest
+    container_name: at-searxng-mcp
+    ports:
+      - "8081:8081"
+    environment:
+      - SEARXNG_URL=http://searxng:8080
+      - MCP_HTTP_PORT=8081
+      # Serve over SSE so the harness' MCP client can reach it as a URL server.
+      - MCP_TRANSPORT=sse
+    depends_on:
+      - searxng
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # Firecrawl (self-hosted) = redis + playwright renderer + api (+ worker).
+  # Used by the agent to fetch/scrape a specific page (e.g. a film's soundtrack
+  # listing) when web-search snippets aren't enough. USE_DB_AUTHENTICATION=false
+  # runs it keyless for local use.
+  # -------------------------------------------------------------------------
+  firecrawl-redis:
+    image: redis:7-alpine
+    container_name: at-firecrawl-redis
+    command: redis-server --save "" --appendonly no
+    restart: unless-stopped
+
+  firecrawl-playwright:
+    image: ghcr.io/firecrawl/playwright-service:latest
+    container_name: at-firecrawl-playwright
+    environment:
+      - PORT=3000
+    restart: unless-stopped
+
+  firecrawl-api:
+    image: ghcr.io/firecrawl/firecrawl:latest
+    container_name: at-firecrawl-api
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - HOST=0.0.0.0
+      - REDIS_URL=redis://firecrawl-redis:6379
+      - REDIS_RATE_LIMIT_URL=redis://firecrawl-redis:6379
+      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-playwright:3000/scrape
+      - USE_DB_AUTHENTICATION=false
+      - FLY_PROCESS_GROUP=app
+    depends_on:
+      - firecrawl-redis
+      - firecrawl-playwright
+    restart: unless-stopped
+
+  # Same image as the API, run as the queue worker that drives the browser.
+  firecrawl-worker:
+    image: ghcr.io/firecrawl/firecrawl:latest
+    container_name: at-firecrawl-worker
+    command: ["pnpm", "run", "workers"]
+    environment:
+      - PORT=3002
+      - HOST=0.0.0.0
+      - REDIS_URL=redis://firecrawl-redis:6379
+      - REDIS_RATE_LIMIT_URL=redis://firecrawl-redis:6379
+      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-playwright:3000/scrape
+      - USE_DB_AUTHENTICATION=false
+      - FLY_PROCESS_GROUP=worker
+    depends_on:
+      - firecrawl-redis
+      - firecrawl-playwright
+      - firecrawl-api
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # Firecrawl-MCP shim — exposes the Firecrawl HTTP API above as MCP tools over
+  # SSE at :8082, matching config.mcp.servers.firecrawl (http://localhost:8082/sse).
+  # FIRECRAWL_API_URL points at the self-hosted api so nothing leaves your box.
+  # -------------------------------------------------------------------------
+  firecrawl-mcp:
+    image: node:20-alpine
+    container_name: at-firecrawl-mcp
+    command: ["npx", "-y", "firecrawl-mcp"]
+    ports:
+      - "8082:8082"
+    environment:
+      - FIRECRAWL_API_URL=http://firecrawl-api:3002
+      # Self-hosted keyless Firecrawl ignores the key, but the client wants one set.
+      - FIRECRAWL_API_KEY=local-no-auth
+      - SSE_LOCAL=true
+      - PORT=8082
+    depends_on:
+      - firecrawl-api
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # JioSaavn API (unofficial) — the Hindi/Bollywood ground-truth source: maps
+  # album->film, year, label, music director (composer), and playback singers.
+  # The published sumitkolhe image listens on 3000 inside the container; we map
+  # host 3500 so it matches config.sources.jiosaavn.base_url (localhost:3500).
+  # RISK: this wraps a private JioSaavn endpoint with no SLA — see docs/SETUP.md.
+  # -------------------------------------------------------------------------
+  jiosaavn-api:
+    image: sumitkolhe/jiosaavn-api:latest
+    container_name: at-jiosaavn-api
+    ports:
+      - "3500:3000"
+    restart: unless-stopped

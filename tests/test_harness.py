@@ -108,17 +108,22 @@ def test_multi_artist_film_stays_one_album():
     assert len(albums) == 1, "single music director -> one album-artist for all tracks"
     assert albums == {("R.D. Burman",)}
     assert len(names) == 1 and len(keys) == 1
-    assert all(r.tags["comp"] == 1 for r in rs), "multi-singer album flagged as compilation"
+    # New semantics: varying playback singers across a film is NOT a compilation.
+    assert all(r.tags["comp"] == 0 for r in rs), "varying singers must not set comp"
 
 
-def test_multiple_music_directors_become_various_artists():
+def test_multiple_music_directors_both_in_albumartist():
+    # New semantics: two known music directors on one film are BOTH credited as
+    # a multi-value ALBUMARTIST (first-seen order) — never "Various Artists" —
+    # and the film is still comp=0 (not a compilation).
     rs = [
         _res("t1", "Arijit Singh", "Pritam", "Some Film"),
         _res("t2", "Shreya Ghoshal", "A.R. Rahman", "Some Film"),
     ]
     reconcile_albums(rs)
-    assert all(r.tags["albumartist"] == ["Various Artists"] for r in rs)
-    assert all(r.tags["comp"] == 1 for r in rs)
+    assert all(r.tags["albumartist"] == ["Pritam", "A.R. Rahman"] for r in rs)
+    assert not any(r.tags["albumartist"] == ["Various Artists"] for r in rs)
+    assert all(r.tags["comp"] == 0 for r in rs)
 
 
 # --------------------------------------------------------------------------- #

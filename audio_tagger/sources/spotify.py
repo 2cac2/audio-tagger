@@ -1,12 +1,22 @@
-"""Spotify source.
+"""Spotify source — demoted, off by default.
 
-Strong coverage of modern Bollywood / Punjabi / indipop, and it exposes
-multiple track artists distinctly (good for collaborations). No composer or
-lyricist though, so it contributes release identity + the singer list.
+Historically strong coverage of modern Bollywood / Punjabi / indipop, exposing
+multiple track artists distinctly (good for collaborations); it never had
+composer or lyricist, so it only ever contributed release identity + the singer
+list.
+
+**Why it is demoted (2024-2026 API lockdown):** Spotify progressively locked
+down its Web API for new/independent apps — deprecating audio-features,
+recommendations and several catalog fields for apps in development mode, and
+tightening client-credentials access. That makes it an unreliable liability for
+an automated tagger, so this adapter now **defaults to disabled** even when
+credentials are present. Deezer (keyless) took over as the commercial fallback +
+ISRC bridge. The class is kept for anyone who still has full API access and
+opts in explicitly (``SpotifySource(enabled=True)`` or ``sources.spotify.enabled:
+true`` in config).
 
 Requires a client id/secret (Client-Credentials flow, no user login):
   export SPOTIFY_CLIENT_ID=...  SPOTIFY_CLIENT_SECRET=...
-If unset, the adapter disables itself gracefully (returns []).
 
 Requires: requests  (pip install requests)
 """
@@ -17,7 +27,7 @@ import os
 import time
 
 from ..models import ArtistCredit, Candidate, InputTrack, ReleaseType
-from .base import query_string
+from .base import query_string, score_match
 
 _ALBUM_TYPE = {
     "album": ReleaseType.ALBUM,
@@ -30,14 +40,15 @@ class SpotifySource:
     name = "spotify"
 
     def __init__(self, client_id: str | None = None, client_secret: str | None = None,
-                 market: str = "IN", limit: int = 5):
+                 market: str = "IN", limit: int = 5, enabled: bool = False):
         self.client_id = client_id or os.getenv("SPOTIFY_CLIENT_ID")
         self.client_secret = client_secret or os.getenv("SPOTIFY_CLIENT_SECRET")
         self.market = market
         self.limit = limit
         self._token = None
         self._token_exp = 0.0
-        self.enabled = bool(self.client_id and self.client_secret)
+        # Demoted: off unless the caller explicitly opts in AND has credentials.
+        self.enabled = bool(enabled and self.client_id and self.client_secret)
 
     def _bearer(self) -> str | None:
         if not self.enabled:
@@ -75,10 +86,12 @@ class SpotifySource:
         for item in resp.json().get("tracks", {}).get("items", []):
             album = item.get("album", {})
             rtype = _ALBUM_TYPE.get(album.get("album_type", ""), ReleaseType.ALBUM)
-            credits = [ArtistCredit(a["name"], "singer") for a in item.get("artists", [])]
+            artists = [a["name"] for a in item.get("artists", []) if a.get("name")]
+            credits = [ArtistCredit(n, "singer") for n in artists]
+            title = item.get("name", "")
             out.append(Candidate(
                 source=self.name,
-                title=item.get("name", ""),
+                title=title,
                 release_title=album.get("name", ""),
                 release_type=rtype,
                 credits=credits,
@@ -88,7 +101,7 @@ class SpotifySource:
                     a.get("name", "").lower() == "various artists"
                     for a in album.get("artists", [])
                 ),
-                match_score=0.72,
+                match_score=score_match(track, title, artists),
                 raw=item,
             ))
         return out

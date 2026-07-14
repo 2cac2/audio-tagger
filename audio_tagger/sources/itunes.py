@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 
 from ..models import ArtistCredit, Candidate, InputTrack, ReleaseType
-from .base import query_string
+from .base import query_string, score_match
 
 _ENDPOINT = "https://itunes.apple.com/search"
 
@@ -59,17 +59,21 @@ class ITunesSource:
                 or "soundtrack" in coll.lower() \
                 or r.get("primaryGenreName", "").lower() == "soundtrack"
             rtype = ReleaseType.SOUNDTRACK if is_soundtrack else ReleaseType.ALBUM
-            credits = [ArtistCredit(n, "singer") for n in _split_artists(r.get("artistName", ""))]
+            artists = _split_artists(r.get("artistName", ""))
+            credits = [ArtistCredit(n, "singer") for n in artists]
+            title = r.get("trackName", "")
             out.append(Candidate(
                 source=self.name,
-                title=r.get("trackName", ""),
+                title=title,
                 release_title=coll,
                 release_type=rtype,
                 credits=credits,
                 film=coll if is_soundtrack else None,
                 release_date=r.get("releaseDate"),
                 year=_year(r.get("releaseDate")),
-                match_score=0.7,   # iTunes gives no score; treat as moderate prior
+                # iTunes gives no score of its own; derive a real one from how
+                # well the hit matches the file (transliteration-tolerant).
+                match_score=score_match(track, title, artists),
                 raw=r,
             ))
         return out

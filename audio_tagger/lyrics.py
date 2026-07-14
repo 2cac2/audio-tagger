@@ -9,12 +9,19 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.parse
 import urllib.request
 
 from .models import Candidate
 
 _LRCLIB = "https://lrclib.net/api/get"
+
+# LRC line timing tags, e.g. "[00:12.34]" or "[1:02:33.500]"; and whole-line
+# metadata tags like "[ar:...]" / "[ti:...]" / "[length:...]" that shouldn't
+# appear in a plain-lyrics tag.
+_LRC_TIMESTAMP = re.compile(r"\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]")
+_LRC_METADATA = re.compile(r"^\[[a-zA-Z]+:.*\]$")
 
 
 def fetch_lrclib(title: str, artist: str, album: str | None = None,
@@ -72,3 +79,32 @@ def fetch_lyrics(candidate: Candidate, duration_sec: float | None = None) -> dic
     if got:
         got["source"] = "genius"
     return got
+
+
+def _plain_from_synced(synced: str) -> str:
+    """Strip LRC timing/metadata tags to recover plain lyric text."""
+    lines: list[str] = []
+    for raw in synced.splitlines():
+        if _LRC_METADATA.match(raw.strip()):
+            continue
+        lines.append(_LRC_TIMESTAMP.sub("", raw).strip())
+    return "\n".join(lines).strip("\n")
+
+
+def choose_writable(got: dict | None) -> tuple[str | None, str | None]:
+    """Split a fetch result into (synced, plain) for the two write targets.
+
+    ``synced`` (LRC) is meant for a sidecar ``.lrc``; ``plain`` is meant for the
+    file's lyrics tag. Either may be ``None``. When only synced lyrics exist we
+    derive plain text by stripping the LRC timing tags, so a tag can still be
+    written from an LRCLIB-only result. Empty/whitespace values become ``None``.
+    """
+    if not got:
+        return None, None
+    synced = got.get("synced")
+    synced = synced if isinstance(synced, str) and synced.strip() else None
+    plain = got.get("plain")
+    plain = plain if isinstance(plain, str) and plain.strip() else None
+    if plain is None and synced is not None:
+        plain = _plain_from_synced(synced) or None
+    return synced, plain

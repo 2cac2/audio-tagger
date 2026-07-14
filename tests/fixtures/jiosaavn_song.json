@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "id": "song1",
+      "name": "Kesariya",
+      "album": {"name": "Brahmastra"},
+      "year": "2022",
+      "language": "hindi",
+      "label": "Sony Music India",
+      "artists": {"primary": [{"name": "Arijit Singh"}]},
+      "music": [{"name": "Pritam"}],
+      "releaseDate": "2022-07-17"
+    }
+  ]
+}
