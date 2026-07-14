@@ -225,16 +225,45 @@ the video duration matches the file (within `duration_tolerance_sec`). Everythin
 else is dropped. Extend the built-in channel allowlist via
 `sources.youtube.trusted_channels` in `config.yaml`.
 
+### Bot-gate on servers / datacenter IPs (PO tokens)
+
+From a home/residential IP, `yt-dlp` usually just works. From a **datacenter or
+server IP**, YouTube returns *"Sign in to confirm you're not a bot"*
+(`LOGIN_REQUIRED`) for every client. The current fix is a **PO-token provider**
+that yt-dlp auto-discovers — no code changes, no account:
+
+```bash
+pip install -U "yt-dlp>=2025.5.22" bgutil-ytdlp-pot-provider
+
+# Run the provider on 127.0.0.1:4416 (yt-dlp finds it automatically):
+#   Docker (simplest, bundles the native libs):
+docker run --name bgutil-provider -d --init -p 4416:4416 \
+  brainicism/bgutil-ytdlp-pot-provider
+#   — or native Node (needs cairo/pango system libs for the `canvas` dep):
+#   apt-get install -y pkg-config libcairo2-dev libpango1.0-dev libjpeg-dev \
+#                      libgif-dev librsvg2-dev build-essential
+#   git clone --branch 1.3.1 https://github.com/Brainicism/bgutil-ytdlp-pot-provider
+#   cd bgutil-ytdlp-pot-provider/server && npm install && npx tsc && node build/main.js
+```
+
+Verify: `yt-dlp --skip-download --print "%(channel)s|%(description).120s"
+"ytsearch1:Kesariya Brahmastra"` should print a label channel + credits (not
+`LOGIN_REQUIRED`). This path is confirmed working from a bot-gated sandbox.
+
+For a **custom provider host/port**, set `sources.youtube.pot_base_url`. If the
+PO token still fails (hard-blocked IP), fall back to **cookies**: export a
+logged-in session to `cookies.txt` and set `sources.youtube.cookiefile` — but a
+Google account used from a datacenter can get flagged, so prefer the PO provider.
+
 **Risk / caveats:**
 
 - `yt-dlp` reads **public metadata only** (title, description, channel, duration)
   — it does **not** download audio here. That is lower-risk than ripping, but
   scraping YouTube is still a grey area under its Terms; use at your own risk.
-- YouTube may throttle or block datacenter IPs, or require a logged-in session.
-  If searches come back empty from a server, pass cookies via a `yt-dlp`
-  `cookiefile` / `--cookies-from-browser` (wire through the adapter's options).
 - The trust filter is mandatory — without it, YouTube would inject cover/knock-off
-  metadata. Do not widen `trusted_channels` to unofficial uploaders.
+  metadata. Do not widen `trusted_channels` to unofficial uploaders. Official
+  label / "…- Topic" uploads are kept even when the video is a shorter edit than
+  the album track; only the weaker *verified* tier is duration-gated.
 - If YouTube is unreachable or `yt-dlp` is absent, the harness keeps working on
   the other sources; you just lose the label-credit corroboration.
 

@@ -45,10 +45,17 @@ class YouTubeSource:
     name = "youtube"
 
     def __init__(self, llm=None, max_results: int = 6,
-                 trusted_channels=None, duration_tolerance_sec: int = 5):
+                 trusted_channels=None, duration_tolerance_sec: int = 5,
+                 cookiefile: str | None = None, extractor_args=None):
         self.llm = llm
         self.max_results = max_results
         self.duration_tolerance_sec = duration_tolerance_sec
+        # cookiefile / extractor_args let the source work on bot-gated (datacenter)
+        # hosts: a Netscape cookies.txt for a logged-in session, or a PO-token
+        # provider base_url (e.g. {"youtubepot-bgutilhttp": {"base_url": [...]}}).
+        # Both are optional; on a residential IP no mitigation is needed.
+        self.cookiefile = cookiefile
+        self.extractor_args = extractor_args
         trusted = set(_DEFAULT_TRUSTED)
         if trusted_channels:
             trusted |= {_norm_channel(c) for c in trusted_channels}
@@ -93,7 +100,14 @@ class YouTubeSource:
             return []
 
         opts = {"quiet": True, "no_warnings": True, "skip_download": True,
-                "extract_flat": False, "noplaylist": True}
+                "extract_flat": False, "noplaylist": True,
+                # A single unavailable/private video in the batch must not sink
+                # the whole search — bad entries become None and are skipped.
+                "ignoreerrors": True}
+        if self.cookiefile:
+            opts["cookiefile"] = self.cookiefile
+        if self.extractor_args:
+            opts["extractor_args"] = self.extractor_args
         try:
             with YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(f"ytsearch{self.max_results}:{q}", download=False)
@@ -106,7 +120,13 @@ class YouTubeSource:
             if not isinstance(entry, dict):
                 continue
             trusted, tier = self._trusted(entry)
-            if not trusted or not self._duration_ok(track, entry):
+            if not trusted:
+                continue
+            # Official-label and "- Topic" uploads are authoritative even when the
+            # music video is a shorter edit than the album track, so only the
+            # weaker "verified" tier is duration-gated (catches a verified channel
+            # hosting unrelated content, e.g. a TV-show clip).
+            if tier == "verified" and not self._duration_ok(track, entry):
                 continue
             cand = self._to_candidate(track, entry, tier)
             if cand:

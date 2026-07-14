@@ -209,20 +209,27 @@ class _FakeLLM:
 
 
 _YT_ENTRIES = [
-    {   # official label upload — KEEP
+    {   # official label upload as a SHORTER music-video edit — KEEP anyway
+        # (official/Topic are authoritative regardless of edit length).
         "id": "vid1", "title": 'Kesariya - Brahmastra | Pritam | Arijit Singh',
         "channel": "Sony Music India", "channel_is_verified": True,
-        "duration": 268, "description": "Singer: Arijit Singh\nMusic: Pritam\nLyrics: Amitabh Bhattacharya\nMovie: Brahmastra",
+        "duration": 172, "description": "Singer: Arijit Singh\nMusic: Pritam\nLyrics: Amitabh Bhattacharya\nMovie: Brahmastra",
     },
-    {   # fan/cover channel, wrong duration — DROP (untrusted + duration mismatch)
+    {   # fan/cover channel — DROP (untrusted)
         "id": "vid2", "title": "Kesariya cover (slowed reverb)",
         "channel": "Random Fan Covers", "channel_is_verified": False,
         "duration": 120, "description": "my cover guys",
     },
-    {   # "- Topic" art-track — KEEP
+    {   # "- Topic" art-track, exact album duration — KEEP
         "id": "vid3", "title": "Kesariya",
         "channel": "Arijit Singh - Topic", "channel_is_verified": False,
         "duration": 268, "description": "Provided to YouTube by Sony Music",
+    },
+    {   # verified channel hosting UNRELATED content at a very different length
+        # — DROP (verified tier is duration-gated).
+        "id": "vid4", "title": "Indian Idol Season 13 | Full Episode",
+        "channel": "SET India", "channel_is_verified": True,
+        "duration": 2400, "description": "reality show episode",
     },
 ]
 
@@ -241,8 +248,10 @@ def test_youtube_trust_filter_and_llm_parse(monkeypatch):
     cands = src.search(track)
 
     channels = {c.raw.get("channel") for c in cands}
-    assert "Random Fan Covers" not in channels, "untrusted/duration-mismatch must be dropped"
-    assert "Sony Music India" in channels and "Arijit Singh - Topic" in channels
+    assert "Random Fan Covers" not in channels, "untrusted channel must be dropped"
+    assert "SET India" not in channels, "verified channel with wrong duration must be dropped"
+    assert "Sony Music India" in channels, "official label kept despite shorter music-video edit"
+    assert "Arijit Singh - Topic" in channels
 
     label = [c for c in cands if c.raw.get("channel") == "Sony Music India"][0]
     assert label.source == "youtube"

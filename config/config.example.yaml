@@ -43,10 +43,13 @@ sources:
   youtube:
     enabled: true                           # needs `pip install yt-dlp`; uses the LLM to parse
     max_results: 6                          # how many search results to consider
-    duration_tolerance_sec: 5               # video vs file duration must match within this
+    duration_tolerance_sec: 5               # duration gate for the weaker "verified" tier
     # Only trusts label channels, "… - Topic" art-tracks, and verified channels.
     # Add channels to extend the built-in allowlist (T-Series, Sony Music India, …):
     # trusted_channels: ["Tips Punjabi", "Lokdhun Punjabi"]
+    # Bot-gate mitigations for datacenter/server hosts (see docs/SETUP.md §5b):
+    # cookiefile: "/path/to/cookies.txt"    # a logged-in YouTube session (Netscape format)
+    # pot_base_url: "http://127.0.0.1:4416" # custom PO-token provider host (default auto-discovered)
   itunes:
     enabled: true                           # keyless search
   spotify:

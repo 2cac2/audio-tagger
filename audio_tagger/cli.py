@@ -89,11 +89,20 @@ def _build_sources(cfg, no_fingerprint: bool = False, llm=None) -> list:
 
     yt = cfg.sources.get("youtube")
     yt_extra = getattr(yt, "extra", {}) or {}
+    # Optional bot-gate mitigations for datacenter hosts: a cookies.txt, and/or a
+    # PO-token provider base_url (the bgutil HTTP provider yt-dlp auto-discovers
+    # at 127.0.0.1:4416 needs nothing here; only set base_url for a custom host).
+    yt_pot_url = yt_extra.get("pot_base_url")
+    yt_extractor_args = (
+        {"youtubepot-bgutilhttp": {"base_url": [yt_pot_url]}} if yt_pot_url else None
+    )
     add("youtube", lambda: YouTubeSource(
         llm=llm,
         max_results=int(yt_extra.get("max_results", 6)),
         trusted_channels=yt_extra.get("trusted_channels"),
         duration_tolerance_sec=int(yt_extra.get("duration_tolerance_sec", 5)),
+        cookiefile=yt_extra.get("cookiefile"),
+        extractor_args=yt_extractor_args,
     ))
 
     add("itunes", lambda: ITunesSource())
