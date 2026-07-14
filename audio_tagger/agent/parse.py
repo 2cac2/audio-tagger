@@ -26,8 +26,13 @@ _SYSTEM = (
     "singers (array of playback-singer names), composers (array of music "
     "director/composer names), lyricists (array of lyricist names), "
     "lyrics (string or null — the full lyric text if the description contains it). "
-    "Distinguish the roles carefully: 'Music'/'Composed by' -> composers, "
-    "'Singer'/'Vocals' -> singers, 'Lyrics'/'Lyricist'/'Written by' -> lyricists. "
+    "Distinguish the roles carefully: 'Music'/'Composed by'/'MD' (music director) -> composers, "
+    "'Singer'/'Vocals'/'Performer'/'performed by' -> singers, "
+    "'Lyrics'/'Lyricist'/'Written by'/'Songwriting' -> lyricists. A person may hold "
+    "multiple roles. Do NOT list instrumentalists, backing vocalists, recording/mix "
+    "engineers, producers-only, or video crew as singers or composers. Treat "
+    "'Featuring'/'Feat.' as a singer ONLY when that person is described as a "
+    "vocalist/singer; people listed only as cast, models, or actors are NOT singers. "
     "If a field is not stated, use null or an empty array — never guess a name."
 )
 
