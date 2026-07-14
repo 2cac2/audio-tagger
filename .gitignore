@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# harness runtime artifacts
+review.csv
+*.tags.bak.json
+*.lrc
+runtime_fallback.py
+
+# secrets
+.env

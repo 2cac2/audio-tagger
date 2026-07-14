@@ -1,0 +1,54 @@
+# Rename to runtime_fallback.py to activate the web-search fallback.
+#
+# The harness stays provider-agnostic: it only needs two callables. Wire them
+# to whatever you actually have. Two common setups shown below.
+#
+# ---------------------------------------------------------------------------
+# Option A — Anthropic (Claude) for the LLM + DuckDuckGo for search
+# ---------------------------------------------------------------------------
+"""
+import os
+from anthropic import Anthropic
+from ddgs import DDGS
+from audio_tagger.sources.websearch import WebSearchFallback
+
+_client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+def _search(query: str):
+    with DDGS() as ddgs:
+        return [
+            {"title": r.get("title"), "url": r.get("href"), "snippet": r.get("body")}
+            for r in ddgs.text(query, max_results=6)
+        ]
+
+def _llm(system: str, user: str) -> str:
+    msg = _client.messages.create(
+        model="claude-sonnet-5",           # cheap + strong enough for extraction
+        max_tokens=800,
+        system=system,
+        messages=[{"role": "user", "content": user}],
+    )
+    return msg.content[0].text
+
+def make_fallback():
+    return WebSearchFallback(search_fn=_search, llm_fn=_llm)
+"""
+
+# ---------------------------------------------------------------------------
+# Option B — an MCP web-search server (if you run the harness inside an agent
+# that exposes MCP tools). Adapt the two thin wrappers to your MCP client.
+# ---------------------------------------------------------------------------
+"""
+from audio_tagger.sources.websearch import WebSearchFallback
+
+def make_fallback(mcp_client, llm_call):
+    def _search(query):
+        res = mcp_client.call_tool("web_search", {"query": query})
+        return [{"title": r["title"], "url": r["url"], "snippet": r.get("snippet", "")}
+                for r in res["results"]]
+    return WebSearchFallback(search_fn=_search, llm_fn=llm_call)
+"""
+
+def make_fallback():
+    # Default: no fallback wired -> disagreements go to the review queue.
+    raise NotImplementedError("copy this file to runtime_fallback.py and wire it up")

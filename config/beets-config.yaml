@@ -1,0 +1,52 @@
+# beets configuration tuned for an Indian-music library.
+#
+# Role in this project: beets is the OPTIONAL heavy-duty library engine you
+# can run alongside (or instead of) the Python harness for the file I/O,
+# fingerprinting and safe writing. It is configured to be conservative — it
+# fingerprints, but it does NOT silently auto-accept low-confidence matches,
+# so the residual lands in front of you rather than on your files.
+#
+# Install:  pip install beets pyacoustid beets-lyrics
+# Use:      beet import -t /path/to/music        # timid: asks on anything unsure
+
+directory: ~/Music
+library: ~/.config/beets/library.db
+
+plugins: chroma fetchart lyrics mbsync info duplicates
+
+import:
+  write: yes
+  copy: no            # tag in place; set to yes if you want beets to own a copy
+  move: no
+  timid: yes          # prompt on every album — no silent guesses
+  quiet_fallback: skip  # if run non-interactively, SKIP rather than mistag
+  none_rec_action: ask
+  # Do NOT auto-accept: force review of anything below a strong match.
+  detail: yes
+
+match:
+  strong_rec_thresh: 0.10     # only near-perfect matches count as "strong"
+  medium_rec_thresh: 0.25
+  # Penalize the exact things that mis-file Indian film songs:
+  preferred:
+    countries: ['IN', 'XW']   # prefer Indian / worldwide releases
+    media: ['Digital Media', 'CD']
+    original_year: yes        # prefer the ORIGINAL release year over reissues
+  # Heavily distrust "various artists" comps so soundtracks win.
+  ignored: []
+
+# chroma = AcoustID fingerprinting (weaker on Indian film music, but still
+# the best first pass; the harness covers the ~15% it misses).
+chroma:
+  auto: yes
+
+# Keep the original release, not a compilation reissue.
+original_date: yes
+
+# Multi-valued artists shown as real separate values.
+per_disc_numbering: yes
+
+paths:
+  default: $albumartist/$album%aunique{}/$track $title
+  singleton: Singles/$artist/$title
+  comp: Various Artists/$album%aunique{}/$track $title
