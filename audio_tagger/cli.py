@@ -283,6 +283,16 @@ def cmd_review(args):
 
 
 # ---------------------------------------------------------------------------
+# dashboard (immich-go-styled full-workflow TUI)
+# ---------------------------------------------------------------------------
+
+def cmd_dashboard(args):
+    from .tui import run_dashboard
+    run_dashboard(args.source, args.dest, config=args.config,
+                  apply=args.apply, tag_copies=args.tag_copies)
+
+
+# ---------------------------------------------------------------------------
 # apply-reviews
 # ---------------------------------------------------------------------------
 
@@ -456,6 +466,16 @@ def main(argv=None):
     og.add_argument("--apply", action="store_true", help="perform the copies (default is a dry-run plan)")
     og.add_argument("--verbose", action="store_true", help="print each planned/copied file")
     og.set_defaults(func=cmd_organize)
+
+    db = sub.add_parser("dashboard",
+                        help="immich-go-styled TUI for the full tag → organize workflow")
+    db.add_argument("source", help="a library path, a --json-out file, or a saved review.json")
+    db.add_argument("--dest", required=True, help="destination library root (copies are written here)")
+    db.add_argument("--config", default=None)
+    db.add_argument("--tag-copies", action="store_true",
+                    help="also write the resolved tags onto the COPIES")
+    db.add_argument("--apply", action="store_true", help="perform the copies (default is a dry-run)")
+    db.set_defaults(func=cmd_dashboard)
 
     args = p.parse_args(argv)
     return args.func(args)

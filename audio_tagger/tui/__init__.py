@@ -15,6 +15,7 @@ Entry point::
 
 from __future__ import annotations
 
+from .dashboard import WorkflowStats, run_dashboard, run_workflow
 from .state import (
     ReviewItem,
     ReviewSession,
@@ -24,6 +25,9 @@ from .state import (
 
 __all__ = [
     "run_tui",
+    "run_dashboard",
+    "run_workflow",
+    "WorkflowStats",
     "load_session",
     "save_session",
     "ReviewSession",
