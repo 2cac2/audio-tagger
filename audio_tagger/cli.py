@@ -308,6 +308,83 @@ def cmd_rollback(args):
 
 
 # ---------------------------------------------------------------------------
+# organize (copy-only)
+# ---------------------------------------------------------------------------
+
+def cmd_organize(args):
+    """Copy tracks into a clean <dest>/<Album>/<Title> tree. COPY-ONLY.
+
+    Sources are never moved, deleted, or modified. With ``--from-json`` the
+    resolved album/title from a ``tag --json-out`` file drive the layout;
+    otherwise each file's *current* tags do. ``--tag-copies`` (json mode only)
+    writes the resolved tags onto the COPIES afterward, so a fully tagged,
+    organized library is produced while the originals stay untouched.
+    """
+    from . import organize as org
+
+    items, tags_list = _organize_items(args)
+    if not items:
+        print("nothing to organize (no audio files / resolutions found)")
+        return
+
+    ops = org.plan(items, args.dest)
+    print(f"planned {len(ops)} copy operation(s) into {os.path.abspath(args.dest)}")
+    print("COPY-ONLY: your original files are never moved, deleted, or modified.\n")
+
+    def _progress(op):
+        if op.status in ("copied", "renamed", "dry_run"):
+            rel = os.path.relpath(op.dest, os.path.abspath(args.dest))
+            tag = "COPY " if not args.apply else ("COPY " if op.status != "renamed" else "COPY*")
+            print(f"  [{ 'DRY' if args.apply is False else tag.strip() }] {rel}")
+
+    summary = org.execute(ops, dry_run=not args.apply, on_progress=_progress if args.verbose else None)
+
+    # Optionally tag the COPIES (never the originals) with the resolved tags.
+    if args.tag_copies and tags_list and args.apply:
+        tagged = 0
+        for op, tags in zip(ops, tags_list):
+            if op.status in ("copied", "renamed") and tags:
+                write_tags(op.dest, tags, dry_run=False)
+                tagged += 1
+        print(f"tagged {tagged} copied file(s) in the new tree")
+
+    _print_org_summary(ops, summary, applied=args.apply)
+
+
+def _organize_items(args):
+    """Return (items, tags_list). ``tags_list`` is parallel resolved tags or []."""
+    from . import organize as org
+    path = args.path
+    use_json = args.from_json or (os.path.isfile(path) and path.lower().endswith(".json"))
+    if use_json:
+        from .tui.state import load_session
+        session = load_session(path, config=None)
+        items = org.items_from_review_items(session.items)
+        tags_list = [it.final_tags() for it in session.items]
+        return items, tags_list
+    tracks = scan_path(path, fingerprint=False)
+    return org.items_from_paths([t.path for t in tracks]), []
+
+
+def _print_org_summary(ops, summary, applied: bool):
+    from collections import Counter
+    albums = Counter(op.album for op in ops)
+    verb = "copied" if applied else "would copy"
+    print()
+    print(f"{'APPLIED' if applied else 'DRY-RUN'} — {len(albums)} album folder(s):")
+    for album, n in sorted(albums.items()):
+        print(f"    {album}/   ({n} track(s))")
+    s = summary
+    done = s["copied"] + s["renamed"] if applied else s["dry_run"]
+    mb = s["bytes"] / (1024 * 1024)
+    print(f"\n  {verb}: {done}   duplicates skipped: {s['skipped_dup']}   "
+          f"renamed (no overwrite): {s['renamed']}   errors: {s['errors']}"
+          + (f"   ({mb:.1f} MB)" if applied else ""))
+    if not applied:
+        print("  dry-run: nothing copied. Re-run with --apply to perform the copies.")
+
+
+# ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
 
@@ -367,6 +444,18 @@ def main(argv=None):
     rb = sub.add_parser("rollback", help="restore original tags from backups")
     rb.add_argument("path")
     rb.set_defaults(func=cmd_rollback)
+
+    og = sub.add_parser("organize",
+                        help="copy tracks into <Album>/ folders (COPY-ONLY; originals untouched)")
+    og.add_argument("path", help="a library path/file, or a tag --json-out file (with --from-json)")
+    og.add_argument("--dest", required=True, help="destination library root (copies are written here)")
+    og.add_argument("--from-json", action="store_true",
+                    help="treat path as a tag --json-out file and organize by the resolved album")
+    og.add_argument("--tag-copies", action="store_true",
+                    help="also write the resolved tags onto the COPIES (json mode + --apply)")
+    og.add_argument("--apply", action="store_true", help="perform the copies (default is a dry-run plan)")
+    og.add_argument("--verbose", action="store_true", help="print each planned/copied file")
+    og.set_defaults(func=cmd_organize)
 
     args = p.parse_args(argv)
     return args.func(args)
